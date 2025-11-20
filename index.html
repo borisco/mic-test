@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Microphone</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .status.ready {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .status.recording {
+            background: #ffebee;
+            color: #c62828;
+            animation: pulse 1s infinite;
+        }
+        
+        .status.finished {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .timer {
+            text-align: center;
+            font-size: 48px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+            min-height: 60px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #start {
+            background: #667eea;
+            color: white;
+        }
+        
+        #start:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        #play {
+            background: #2e7d32;
+            color: white;
+        }
+        
+        #play:hover:not(:disabled) {
+            background: #1b5e20;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(46, 125, 50, 0.4);
+        }
+        
+        #download {
+            background: #f57c00;
+            color: white;
+        }
+        
+        #download:hover:not(:disabled) {
+            background: #e65100;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 124, 0, 0.4);
+        }
+
+        #stop {
+            background: #c62828;
+            color: white;
+        }
+
+        #stop:hover:not(:disabled) {
+            background: #b71c1c;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(198, 40, 40, 0.4);
+        }
+        
+        audio {
+            width: 100%;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+        
+        .info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .info strong {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Test de Microphone</h1>
+        <p class="subtitle">Enregistrez jusqu'à 60 secondes pour tester la qualité</p>
+        
+        <div id="status" class="status ready">
+            Prêt à enregistrer
+        </div>
+        
+        <div id="timer" class="timer"></div>
+
+        <button id="start">🔴 Démarrer l'enregistrement</button>
+        <button id="stop" disabled>⏹️ Arrêter l'enregistrement</button>
+        <button id="play" disabled>▶️ Écouter l'enregistrement</button>
+        <button id="download" disabled>⬇️ Télécharger</button>
+        
+        <audio id="audio" controls style="display:none"></audio>
+        
+        <div class="info">
+            <strong>💡 Astuce :</strong> Testez différents micros (filaire, sans-fil, intégré) et comparez la qualité de la lecture.
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioBlob;
+        let timerInterval;
+        let currentStream;
+
+        const startBtn = document.getElementById('start');
+        const stopBtn = document.getElementById('stop');
+        const playBtn = document.getElementById('play');
+        const downloadBtn = document.getElementById('download');
+        const audioElement = document.getElementById('audio');
+        const statusDiv = document.getElementById('status');
+        const timerDiv = document.getElementById('timer');
+        
+        startBtn.onclick = async () => {
+            try {
+                audioChunks = [];
+                
+                // Demander l'accès au micro avec paramètres optimaux
+                currentStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        sampleRate: 48000
+                    }
+                });
+                
+                // Créer l'enregistreur
+                mediaRecorder = new MediaRecorder(currentStream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    // Créer le fichier audio
+                    audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    audioElement.src = audioUrl;
+                    audioElement.style.display = 'block';
+
+                    // Activer les boutons
+                    playBtn.disabled = false;
+                    downloadBtn.disabled = false;
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+
+                    statusDiv.textContent = '✅ Enregistrement terminé !';
+                    statusDiv.className = 'status finished';
+
+                    // Arrêter le stream
+                    if (currentStream) {
+                        currentStream.getTracks().forEach(track => track.stop());
+                    }
+
+                    // Nettoyer le timer
+                    if (timerInterval) {
+                        clearInterval(timerInterval);
+                        timerInterval = null;
+                    }
+                };
+                
+                // Démarrer l'enregistrement
+                mediaRecorder.start();
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                playBtn.disabled = true;
+                downloadBtn.disabled = true;
+
+                statusDiv.textContent = '🔴 Enregistrement en cours...';
+                statusDiv.className = 'status recording';
+
+                // Timer de 60 secondes max
+                let secondsElapsed = 0;
+                timerDiv.textContent = '0s / 60s';
+
+                timerInterval = setInterval(() => {
+                    secondsElapsed++;
+                    timerDiv.textContent = secondsElapsed + 's / 60s';
+
+                    if (secondsElapsed >= 60) {
+                        clearInterval(timerInterval);
+                        timerDiv.textContent = '';
+                        mediaRecorder.stop();
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Erreur:', error);
+                statusDiv.textContent = '❌ Erreur : accès au micro refusé';
+                statusDiv.className = 'status ready';
+                alert('Impossible d\'accéder au microphone. Vérifiez les permissions.');
+            }
+        };
+
+        stopBtn.onclick = () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                timerDiv.textContent = '';
+            }
+        };
+
+        playBtn.onclick = () => {
+            audioElement.play();
+        };
+
+        downloadBtn.onclick = () => {
+            const url = URL.createObjectURL(audioBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'test-micro-' + new Date().getTime() + '.webm';
+            a.click();
+        };
+    </script>
+</body>
+</html>
