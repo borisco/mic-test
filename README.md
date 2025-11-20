@@ -38,7 +38,7 @@ Perfect for comparing:
 
 ## Demo
 
-[View Live Demo](https://your-username.github.io/mic-test/)
+[View Live Demo](https://borisco.github.io/mic-test/)
 
 ## Installation
 
